@@ -1,0 +1,22 @@
+{
+    "Deps": {
+        "test": {
+            "Build": {
+                "Build": {
+                    "Deps": {},
+                    "Cmd": [
+                        "/bin/sh",
+                        "-c",
+                        "echo hello world > a"
+                    ]
+                }
+            },
+            "Path": "."
+        }
+    },
+    "Cmd": [
+        "/bin/sh",
+        "-c",
+        "cat ./test/a"
+    ]
+}
