@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
+	"sync"
 
 	"blitz.build/types"
 	shell "github.com/ipfs/go-ipfs-api"
@@ -16,7 +18,14 @@ import (
 )
 
 type BState struct {
-	Sh *shell.Shell
+	Sh    *shell.Shell
+	Alarm *sync.Mutex
+}
+
+func (b BState) Log(x string) {
+	b.Alarm.Lock()
+	defer b.Alarm.Unlock()
+	fmt.Fprintln(os.Stderr, x)
 }
 
 func hash(x interface{}) []byte {
@@ -25,14 +34,14 @@ func hash(x interface{}) []byte {
 	return s.Sum([]byte{})
 }
 
-func buildDep(t types.Pathed, sh BState) (p string, err error) {
+func buildDep(t types.Pathed, sh BState, stack []string) (p string, err error) {
 	var r string
 	b := t.Build
 	if b.Build != nil {
-		r, err = build(*b.Build, sh)
+		r, err = build(*b.Build, sh, stack)
 	} else if b.Join != nil {
 		var s string
-		s, err = buildDep(*b.Join, sh)
+		s, err = buildDep(*b.Join, sh, stack)
 		if err != nil {
 			return
 		}
@@ -47,7 +56,7 @@ func buildDep(t types.Pathed, sh BState) (p string, err error) {
 		if err != nil {
 			return
 		}
-		r, err = buildDep(x, sh)
+		r, err = buildDep(x, sh, stack)
 	} else {
 		r, err = sh.Sh.AddDir(b.Host)
 		if err != nil {
@@ -58,13 +67,14 @@ func buildDep(t types.Pathed, sh BState) (p string, err error) {
 	return
 }
 
-func buildIn(b types.Build, sh BState, t string) error {
+func buildIn(b types.Build, sh BState, t string, stack []string) error {
+	defer sh.Log(fmt.Sprintf("Building %s", strings.Join(stack, " > ")))
 	var g errgroup.Group
 	for k, d := range b.Deps {
 		k := k
 		d := d
 		g.Go(func() error {
-			p, err := buildDep(d, sh)
+			p, err := buildDep(d, sh, stack)
 			if err != nil {
 				return err
 			}
@@ -85,17 +95,21 @@ func buildIn(b types.Build, sh BState, t string) error {
 	return c.Run()
 }
 
-func build(x types.Build, sh BState) (p string, err error) {
+func build(x types.Build, sh BState, stack []string) (p string, err error) {
 	h := "cache/" + base64.URLEncoding.EncodeToString(hash(x))
 	// fmt.Println(h)
+	sh.Alarm.Lock()
 	if _, err = os.Stat(h); err == nil {
+		sh.Alarm.Unlock()
 		var x []byte
 		x, err = os.ReadFile(h)
 		if err != nil {
 			return
 		}
 		p = string(x)
+		return
 	} else if errors.Is(err, os.ErrNotExist) {
+		sh.Alarm.Unlock()
 		var t string
 		t, err = os.MkdirTemp("/tmp", "blitz-*")
 		if err != nil {
@@ -114,15 +128,18 @@ func build(x types.Build, sh BState) (p string, err error) {
 			if err != nil {
 				return
 			}
+			sh.Alarm.Lock()
+			defer sh.Alarm.Unlock()
 			err = os.WriteFile(h, []byte(d), 0777)
 			if err != nil {
 				return
 			}
 			p = d
 		}()
-		err = buildIn(x, sh, t)
+		err = buildIn(x, sh, t, append(stack, x.Name))
 		return
 	}
+	sh.Alarm.Unlock()
 	return
 }
 
@@ -141,9 +158,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	i, err := build(b, BState{
-		Sh: sh,
-	})
+	var alarm sync.Mutex
+	s := BState{
+		Sh:    sh,
+		Alarm: &alarm,
+	}
+	s.Log("Starting")
+	i, err := build(b, s, []string{})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return

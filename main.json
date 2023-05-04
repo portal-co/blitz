@@ -7,8 +7,9 @@
                     "Cmd": [
                         "/bin/sh",
                         "-c",
-                        "echo hello world > a"
-                    ]
+                        "echo hello world !? yay > a"
+                    ],
+                    "Name": "building a"
                 }
             },
             "Path": "."
@@ -18,5 +19,6 @@
         "/bin/sh",
         "-c",
         "cat ./test/a"
-    ]
+    ],
+    "Name": "printing a"
 }
