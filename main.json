@@ -7,7 +7,7 @@
                     "Cmd": [
                         "/bin/sh",
                         "-c",
-                        "echo hello world !? yay > a"
+                        "echo hello world !? yay ipfs > a"
                     ],
                     "Name": "building a"
                 }
