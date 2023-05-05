@@ -119,7 +119,10 @@ func build(x types.Build, sh BState, stack []string) (p string, err error) {
 	if err != nil {
 		return
 	}
-	h := "cache/" + base64.URLEncoding.EncodeToString(hash(key))
+	h := "cache/" + base64.URLEncoding.EncodeToString(hash([]interface{}{
+		key,
+		x,
+	}))
 	// fmt.Println(h)
 	sh.Alarm.Lock()
 	if _, err = os.Stat(h); err == nil {
