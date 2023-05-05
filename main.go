@@ -68,7 +68,7 @@ func buildDep(t types.Pathed, sh BState, stack []string) (p string, err error) {
 }
 
 func buildIn(b types.Build, sh BState, t string, stack []string) error {
-	defer sh.Log(fmt.Sprintf("Building %s", strings.Join(stack, " > ")))
+	defer sh.Log(fmt.Sprintf("Built %s", strings.Join(stack, " > ")))
 	var g errgroup.Group
 	for k, d := range b.Deps {
 		k := k
