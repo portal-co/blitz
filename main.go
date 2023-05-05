@@ -69,25 +69,25 @@ func buildDep(t types.Pathed, sh BState, stack []string) (p string, err error) {
 
 func buildIn(b types.Build, sh BState, t string, stack []string) error {
 	defer sh.Log(fmt.Sprintf("Built %s", strings.Join(stack, " > ")))
-	var g errgroup.Group
-	for k, d := range b.Deps {
-		k := k
-		d := d
-		g.Go(func() error {
-			p, err := buildDep(d, sh, stack)
-			if err != nil {
-				return err
-			}
-			return os.Symlink("/ipfs/"+p, t+"/"+k)
-		})
-		defer func() {
-			os.Remove(t + "/" + k)
-		}()
-	}
-	err := g.Wait()
-	if err != nil {
-		return err
-	}
+	// var g errgroup.Group
+	// for k, d := range b.Deps {
+	// 	k := k
+	// 	d := d
+	// 	g.Go(func() error {
+	// 		p, err := buildDep(d, sh, stack)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		return os.Symlink("/ipfs/"+p, t+"/"+k)
+	// 	})
+	// 	defer func() {
+	// 		os.Remove(t + "/" + k)
+	// 	}()
+	// }
+	// err := g.Wait()
+	// if err != nil {
+	// 	return err
+	// }
 	c := exec.Command(b.Cmd[0], b.Cmd[1:]...)
 	c.Dir = t
 	c.Stdout = os.Stdout
@@ -96,7 +96,30 @@ func buildIn(b types.Build, sh BState, t string, stack []string) error {
 }
 
 func build(x types.Build, sh BState, stack []string) (p string, err error) {
-	h := "cache/" + base64.URLEncoding.EncodeToString(hash(x))
+	var g errgroup.Group
+	var t string
+	var mtx sync.Mutex
+	key := make(map[string]string)
+	for k, d := range x.Deps {
+		k := k
+		d := d
+		g.Go(func() error {
+			p, err := buildDep(d, sh, stack)
+			if err != nil {
+				return err
+			}
+			//return os.Symlink("/ipfs/"+p, t+"/"+k)
+			mtx.Lock()
+			defer mtx.Unlock()
+			key[k] = p
+			return nil
+		})
+	}
+	err = g.Wait()
+	if err != nil {
+		return
+	}
+	h := "cache/" + base64.URLEncoding.EncodeToString(hash(key))
 	// fmt.Println(h)
 	sh.Alarm.Lock()
 	if _, err = os.Stat(h); err == nil {
@@ -110,10 +133,20 @@ func build(x types.Build, sh BState, stack []string) (p string, err error) {
 		return
 	} else if errors.Is(err, os.ErrNotExist) {
 		sh.Alarm.Unlock()
-		var t string
 		t, err = os.MkdirTemp("/tmp", "blitz-*")
 		if err != nil {
 			return
+		}
+		for k, q := range key {
+			k := k
+			// fmt.Printf("%s,%s\n", k, p)
+			err = os.Symlink("/ipfs/"+q, t+"/"+k)
+			if err != nil {
+				return
+			}
+			defer func() {
+				os.Remove(t + "/" + k)
+			}()
 		}
 		defer func() {
 			if err != nil {
