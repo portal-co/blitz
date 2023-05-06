@@ -1,24 +1,10 @@
 {
     "Deps": {
-        "test": {
-            "Build": {
-                "Build": {
-                    "Deps": {},
-                    "Cmd": [
-                        "/bin/sh",
-                        "-c",
-                        "echo hello world !? yay ipfs > a"
-                    ],
-                    "Name": "building a"
-                }
-            },
-            "Path": "."
-        }
     },
     "Cmd": [
         "/bin/sh",
         "-c",
-        "cat ./test/a"
+        "echo a"
     ],
     "Name": "printing a"
 }

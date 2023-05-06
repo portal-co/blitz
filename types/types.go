@@ -1,7 +1,9 @@
 package types
 
+import ipfsref "blitz.build/ipfs-ref"
+
 type DepScope struct {
-	Build *Build
+	Build *ipfsref.IpfsRef[Build]
 	Join  *Pathed
 	Host  string
 }

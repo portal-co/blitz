@@ -38,7 +38,12 @@ func buildDep(t types.Pathed, sh BState, stack []string) (p string, err error) {
 	var r string
 	b := t.Build
 	if b.Build != nil {
-		r, err = build(*b.Build, sh, stack)
+		var c types.Build
+		c, err = b.Build.Get(sh.Sh)
+		if err != nil {
+			return
+		}
+		r, err = build(c, sh, stack)
 	} else if b.Join != nil {
 		var s string
 		s, err = buildDep(*b.Join, sh, stack)
