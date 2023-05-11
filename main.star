@@ -1,0 +1,1 @@
+main = ctx.action(deps = {}, name = "Printing a", cmd = ["/bin/sh","-c","echo a"], path = ".")

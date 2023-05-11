@@ -1,10 +1,1 @@
-{
-    "Deps": {
-    },
-    "Cmd": [
-        "/bin/sh",
-        "-c",
-        "echo a"
-    ],
-    "Name": "printing a"
-}
+{"Deps":{"$":{"Build":{"Build":"Qmcvz5TqbrFFa2Mt82K2RMDCmFjZg2DrCx3beVXdDude9p","Join":null,"Host":""},"Path":"."}},"Cmd":["/bin/echo"],"Name":"Finishing up"}

@@ -109,7 +109,7 @@ func build(x types.Build, sh BState, stack []string) (p string, err error) {
 		k := k
 		d := d
 		g.Go(func() error {
-			p, err := buildDep(d, sh, stack)
+			p, err := buildDep(d, sh, append(stack, x.Name))
 			if err != nil {
 				return err
 			}

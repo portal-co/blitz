@@ -1,8 +1,9 @@
 package ipfsref
 
 import (
+	"bytes"
 	"encoding/json"
-	"io"
+	"fmt"
 
 	shell "github.com/ipfs/go-ipfs-api"
 )
@@ -23,16 +24,14 @@ func (i IpfsRef[T]) Get(sh *shell.Shell) (res T, err error) {
 }
 
 func Create[T any](sh *shell.Shell, val T) (ref IpfsRef[T], err error) {
-	r, w := io.Pipe()
-	ch := make(chan struct{})
-	go func() {
-		json.NewEncoder(w).Encode(val)
-		ch <- struct{}{}
-	}()
-	a, err := sh.Add(r)
+	e, err := json.Marshal(val)
 	if err != nil {
 		return
 	}
-	<-ch
+	a, err := sh.Add(bytes.NewBuffer(e))
+	if err != nil {
+		return
+	}
+	fmt.Println("Added")
 	return IpfsRef[T](a), nil
 }
