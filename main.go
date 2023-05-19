@@ -18,6 +18,7 @@ import (
 	"blitz.build/maputils"
 	"blitz.build/types"
 	shell "github.com/ipfs/go-ipfs-api"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -68,6 +69,91 @@ func sock(x string) http.Client {
 			},
 		},
 	}
+}
+
+func buildWorker(b types.Worker, sh BState, stack []string) (r string, err error) {
+	var wc types.Pathed
+	wc, err = b.Code.Get(sh.Sh)
+	if err != nil {
+		return
+
+	}
+	var s string
+	s, err = buildDep(wc, sh, stack)
+	if err != nil {
+		return
+	}
+	t := maps.Clone(b.InputStrs)
+	var g errgroup.Group
+	for k, i := range b.Input {
+		k := k
+		i := i
+		g.Go(func() error {
+			u, err := buildDep(i, sh, stack)
+			t[k] = u
+			return err
+		})
+	}
+	h := "cache/" + base64.URLEncoding.EncodeToString(hash([]interface{}{
+		t,
+		b,
+		sh.Stack,
+	}))
+	if _, err = os.Stat(h); err == nil {
+		sh.Alarm.Unlock()
+		var x []byte
+		x, err = os.ReadFile(h)
+		if err != nil {
+			return
+		}
+		r = string(x)
+		return
+	} else if errors.Is(err, os.ErrNotExist) {
+		defer func() {
+			if err != nil {
+				return
+			}
+			err = os.WriteFile(h, []byte(r), 0777)
+			if err != nil {
+				return
+			}
+		}()
+		u := ""
+		for k, tt := range t {
+			u = u + ";" + k + "=" + tt
+		}
+		err = g.Wait()
+		if err != nil {
+			return
+		}
+		sh.Alarm.Lock()
+		w, ok := sh.WCache[s+"$"+b.File]
+		if ok {
+
+		} else {
+			w.Sock = "cache/" + s + ".wsock"
+			c := exec.Command("force-exec", "/ipfs/"+s+b.File, s, w.Sock)
+			c.Dir = "/ipfs/" + s
+			c.Start()
+			w.Cmd = c
+			sh.WCache[s+"$"+b.File] = w
+		}
+		sh.Alarm.Unlock()
+		c := sock(w.Sock)
+		var a *http.Response
+		a, err = c.Get("http://localhost/run?input=" + u)
+		if err != nil {
+			return
+		}
+		defer a.Body.Close()
+		var l map[string]types.Pathed
+		err = json.NewDecoder(a.Body).Decode(&l)
+		if err != nil {
+			return
+		}
+		r, err = buildDep(l[b.Key], sh, stack)
+	}
+	return
 }
 
 func buildDep(t types.Pathed, sh BState, stack []string) (p string, err error) {
@@ -129,45 +215,7 @@ func buildDep(t types.Pathed, sh BState, stack []string) (p string, err error) {
 
 		r, err = buildDep(x, sh, stack)
 	} else if b.Worker != nil {
-		var wc types.Pathed
-		wc, err = b.Worker.Code.Get(sh.Sh)
-		if err != nil {
-			return
-
-		}
-		var s string
-		s, err = buildDep(wc, sh, stack)
-		if err != nil {
-			return
-		}
-		var t string
-		t, err = buildDep(b.Worker.Input, sh, stack)
-		if err != nil {
-			return
-		}
-		sh.Alarm.Lock()
-		defer sh.Alarm.Unlock()
-		w, ok := sh.WCache[s+"$"+b.Worker.File]
-		if ok {
-
-		} else {
-			w.Sock = "cache/" + s + ".wsock"
-			c := exec.Command("force-exec", "/ipfs/"+s+b.Worker.File, s, w.Sock)
-			c.Dir = "/ipfs/" + s
-			c.Start()
-			w.Cmd = c
-			sh.WCache[s+"$"+b.Worker.File] = w
-		}
-		c := sock(w.Sock)
-		var a *http.Response
-		a, err = c.Get("http://localhost/run?input=" + t)
-		if err != nil {
-			return
-		}
-		defer a.Body.Close()
-		var l map[string]string
-		err = json.NewDecoder(a.Body).Decode(&l)
-		return l[b.Worker.Key], err
+		r, err = buildWorker(*b.Worker, sh, stack)
 	} else {
 		r, err = sh.Sh.AddDir(b.Host)
 		if err != nil {

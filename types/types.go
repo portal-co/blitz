@@ -30,10 +30,11 @@ type FlatMap struct {
 }
 
 type Worker struct {
-	Code  ipfsref.IpfsRef[Pathed]
-	Key   string
-	File  string
-	Input Pathed
+	Code      ipfsref.IpfsRef[Pathed]
+	Key       string
+	File      string
+	Input     map[string]Pathed
+	InputStrs map[string]string
 }
 
 func B(sh *shell.Shell, deps map[string]Pathed, cmd []string, name string, path string) (Pathed, error) {
