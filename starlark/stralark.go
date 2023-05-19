@@ -47,6 +47,7 @@ func (b BlitzBuild) Hash() (uint32, error) {
 
 type Context struct {
 	Shell *shell.Shell
+	Funs  map[string]starlark.Callable
 }
 
 func (b Context) String() string {
@@ -70,7 +71,7 @@ func (b Context) Hash() (uint32, error) {
 }
 
 func (c Context) AttrNames() []string {
-	return []string{"action", "join"}
+	return []string{"action", "join", "bind"}
 }
 
 func (c Context) Attr(name string) (starlark.Value, error) {
@@ -114,6 +115,19 @@ func (c Context) Attr(name string) (starlark.Value, error) {
 			x := types.Pathed(tgt)
 			return BlitzBuild(types.Pathed{Path: path, Build: types.DepScope{Join: &x}}), nil
 		}
+		// if name == "bind" {
+		// 	var tgt BlitzBuild
+		// 	var id string
+		// 	var run starlark.Callable
+		// 	if err := starlark.UnpackArgs(fn.Name(), args, kwargs, "target", &tgt, "id", &id, "by", &run); err != nil {
+		// 		return nil, err
+		// 	}
+		// 	hasher := sha256.New()
+		// 	hasher.Write([]byte(id))
+		// 	hash := base64.URLEncoding.EncodeToString(hasher.Sum([]byte("a")))
+		// 	c.Funs[hash] = run
+
+		// }
 		return nil, fmt.Errorf("invalid argument")
 	}), nil
 }
