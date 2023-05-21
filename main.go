@@ -14,10 +14,12 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 
 	"blitz.build/maputils"
 	"blitz.build/types"
 	shell "github.com/ipfs/go-ipfs-api"
+	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 )
@@ -287,6 +289,11 @@ func buildBase(x types.Build, sh BState, stack []string) (p string, err error) {
 	if err != nil {
 		return
 	}
+	sh.Log(fmt.Sprintf("%v", key))
+	err = g.Wait()
+	if err != nil {
+		return
+	}
 	h := "cache/" + base64.URLEncoding.EncodeToString(hash([]interface{}{
 		key,
 		x,
@@ -346,18 +353,39 @@ func buildBase(x types.Build, sh BState, stack []string) (p string, err error) {
 		if err != nil {
 			return
 		}
-		c := exec.Command("/usr/bin/env", "bindfs", "--resolve-symlinks", "-p", "a+X", t, u)
+		c := exec.Command("/usr/bin/env", "bindfs", "-f", "--resolve-symlinks", "-p", "a+Xx", t, u)
 		c.Stderr = os.Stderr
 		err = c.Start()
 		if err != nil {
 			err = fmt.Errorf("binding at %s at %w", u, err)
 			return
 		}
+		b := false
+		for !b {
+			b, err = mountinfo.Mounted(u)
+			if err != nil {
+				return
+			}
+		}
 		defer func() {
 			if err != nil {
 				return
 			}
-			err = c.Process.Kill()
+			err = c.Process.Signal(syscall.SIGINT)
+			if err != nil {
+				return
+			}
+			err = c.Wait()
+			if err != nil {
+				err = fmt.Errorf("binding at %s at %w", u, err)
+				return
+			}
+			// d := exec.Command("fusermount", "-u", u)
+			// d.Stderr = os.Stderr
+			// if err != nil {
+			// 	return
+			// }
+			// err = d.Run()
 		}()
 		err = buildIn(x, sh, u, append(stack, x.Name))
 		if err != nil {
