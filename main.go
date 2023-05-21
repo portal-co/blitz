@@ -228,6 +228,7 @@ func buildDep(t types.Pathed, sh BState, stack []string) (p string, err error) {
 
 func buildIn(b types.Build, sh BState, t string, stack []string) error {
 	defer sh.Log(fmt.Sprintf("Built %s", strings.Join(stack, " > ")))
+	sh.Log(fmt.Sprintf("Building %s", strings.Join(stack, " > ")))
 	// var g errgroup.Group
 	// for k, d := range b.Deps {
 	// 	k := k
@@ -255,6 +256,14 @@ func buildIn(b types.Build, sh BState, t string, stack []string) error {
 }
 
 func build(x types.Build, sh BState, stack []string) (p string, err error) {
+	base, err := buildBase(x, sh, stack)
+	if err != nil {
+		return base, fmt.Errorf("at %+s %w", stack, err)
+	}
+	return base, nil
+}
+
+func buildBase(x types.Build, sh BState, stack []string) (p string, err error) {
 	var g errgroup.Group
 	var t string
 	var mtx sync.Mutex
@@ -332,7 +341,29 @@ func build(x types.Build, sh BState, stack []string) (p string, err error) {
 			}
 			p = d
 		}()
-		err = buildIn(x, sh, t, append(stack, x.Name))
+		var u string
+		u, err = os.MkdirTemp("/tmp", "blitz-root-*")
+		if err != nil {
+			return
+		}
+		c := exec.Command("/usr/bin/env", "bindfs", "--resolve-symlinks", "-p", "a+X", t, u)
+		c.Stderr = os.Stderr
+		err = c.Start()
+		if err != nil {
+			err = fmt.Errorf("binding at %s at %w", u, err)
+			return
+		}
+		defer func() {
+			if err != nil {
+				return
+			}
+			err = c.Process.Kill()
+		}()
+		err = buildIn(x, sh, u, append(stack, x.Name))
+		if err != nil {
+			err = fmt.Errorf("executing at %s at %w", u, err)
+			return
+		}
 		return
 	}
 	sh.Alarm.Unlock()

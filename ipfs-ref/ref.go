@@ -23,8 +23,16 @@ func (i IpfsRef[T]) Get(sh *shell.Shell) (res T, err error) {
 	return
 }
 
+func JSONMarshal(t interface{}) ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(t)
+	return buffer.Bytes(), err
+}
+
 func Create[T any](sh *shell.Shell, val T) (ref IpfsRef[T], err error) {
-	e, err := json.Marshal(val)
+	e, err := JSONMarshal(val)
 	if err != nil {
 		return
 	}

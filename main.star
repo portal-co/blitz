@@ -1,1 +1,1 @@
-main = ctx.action(deps = {}, name = "Printing a", cmd = ["/bin/sh","-c","echo a"], path = ".")
+main = ctx.action(deps = {"x": ctx.action(deps = {}, name = "Creating script", path = ".", cmd = ["/bin/sh","-c","echo '#!/bin/sh' > x;echo 'echo bb' >> x;find .;"])}, name = "Printing b", cmd = ["/bin/sh","-c","find .;./x/x;echo done"], path = ".")
